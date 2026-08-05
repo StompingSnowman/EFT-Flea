@@ -99,16 +99,21 @@ def download_and_apply_update(download_url):
             f'    move /y "{backup_path}" "{current_exe}" >nul 2>&1\r\n'
             "    exit /b 1\r\n"
             ")\r\n"
-            # Brief pause before launching - a freshly-written exe can get
-            # briefly locked by antivirus real-time scanning, which fails
-            # an immediate launch attempt even though the file is fine.
-            "timeout /t 2 /nobreak > NUL\r\n"
+            # A freshly-written exe can get locked by antivirus real-time
+            # scanning for longer than a couple seconds, which fails an
+            # early launch attempt even though the file itself is fine.
+            # Checking "is it running" right after launch is unreliable too
+            # - a process that's about to crash still briefly shows up in
+            # tasklist - so wait a beat *after* launching before checking,
+            # and give it several attempts with growing delays.
+            "set ATTEMPTS=0\r\n"
+            ":launch\r\n"
+            "set /a ATTEMPTS+=1\r\n"
+            "timeout /t 3 /nobreak > NUL\r\n"
             f'start "" "{current_exe}"\r\n'
-            "timeout /t 2 /nobreak > NUL\r\n"
+            "timeout /t 4 /nobreak > NUL\r\n"
             f'tasklist /FI "IMAGENAME eq {exe_name}" 2>NUL | find /I "{exe_name}" >NUL\r\n'
-            "if errorlevel 1 (\r\n"
-            f'    start "" "{current_exe}"\r\n'
-            ")\r\n"
+            "if errorlevel 1 if %ATTEMPTS% LSS 4 goto launch\r\n"
             'del "%~f0"\r\n'
         )
 
