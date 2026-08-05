@@ -15,6 +15,11 @@ LISTING_FEE_ESTIMATE = 2500
 EXCLUDED_TYPES = {"gun", "preset"}
 FILTER_WORDS = ["default"]
 
+# An item with fewer than this many active flea listings is treated as
+# untradeable right now - its cached lastLowPrice/avg24hPrice may be stale
+# history rather than something you can actually act on.
+MIN_OFFER_COUNT = 5
+
 # Escape from Tarkov's flea market listing fee formula:
 #   Fee = VO * Ti * 4^PO + VR * Tr * 4^PR
 # where VO = base price, VR = listing price, and whichever of PO/PR points
@@ -68,6 +73,20 @@ def name_contains_filtered_word(name, filter_words):
     return any(word in name_lower for word in filter_words)
 
 
+def conservative_flea_price(item, side):
+    """Picks the less-favorable-to-the-player of lastLowPrice/avg24hPrice,
+    so a stale/outlier price in either direction can't inflate a profit
+    estimate. side="buy" (you're paying it, e.g. Flea->Trader) takes the
+    higher of the two; side="sell" (you're receiving it, e.g. selling on
+    flea) takes the lower."""
+    candidates = [
+        p for p in (item.get("lastLowPrice"), item.get("avg24hPrice")) if p
+    ]
+    if not candidates:
+        return None
+    return max(candidates) if side == "buy" else min(candidates)
+
+
 def compute_profitable_items():
     items = fetch_items()
     profitable_items = []
@@ -85,7 +104,10 @@ def compute_profitable_items():
         if name_contains_filtered_word(name, FILTER_WORDS):
             continue
 
-        flea_price = item.get("lastLowPrice")
+        if (item.get("lastOfferCount") or 0) < MIN_OFFER_COUNT:
+            continue
+
+        flea_price = conservative_flea_price(item, "buy")
         if not flea_price:
             continue
 
@@ -108,8 +130,8 @@ def compute_profitable_items():
         buy_till_rub = trader_max - LISTING_FEE_ESTIMATE
         profitable_items.append({
             "name": name,
-            "profit": profit,
-            "flea": flea_price,
+            "profit": int(profit),
+            "flea": int(flea_price),
             "rub": int(buy_till_rub),
             "usd": int(buy_till_rub / 163),
             "eur": int(buy_till_rub / 190),
@@ -120,8 +142,12 @@ def compute_profitable_items():
 
 
 def compute_trader_to_flea_items():
+    """Returns, per item, every trader offer that's profitable on its own -
+    not just the single cheapest one - so the client can pick whichever
+    offer is actually accessible once a trader-level filter is applied,
+    without needing to re-fetch from the backend."""
     items = fetch_items()
-    profitable_items = []
+    result_items = []
 
     for item_id, item in items.items():
         normalized_name = item.get("normalizedName")
@@ -136,44 +162,50 @@ def compute_trader_to_flea_items():
         if name_contains_filtered_word(name, FILTER_WORDS):
             continue
 
+        if (item.get("lastOfferCount") or 0) < MIN_OFFER_COUNT:
+            continue
+
         offers = [o for o in (item.get("buyFromTrader") or []) if o.get("priceRUB")]
         if not offers:
             continue
 
-        # Cheapest way to acquire the item, mirroring how the Flea->Trader
-        # side picks the single best (highest) trader payout.
-        best_offer = min(offers, key=lambda o: o["priceRUB"])
-        buy_price = best_offer["priceRUB"]
-
         base_price = item.get("basePrice")
-        flea_sell_price = item.get("lastLowPrice")
+        flea_sell_price = conservative_flea_price(item, "sell")
         if not base_price or not flea_sell_price:
             continue
 
         fee = compute_flea_fee(base_price, flea_sell_price)
         net_received = flea_sell_price - fee
-        profit = net_received - buy_price
-        if profit <= 0:
+
+        offer_list = []
+        for offer in offers:
+            buy_price = offer["priceRUB"]
+            profit = net_received - buy_price
+            if profit <= 0:
+                continue
+
+            buy_limit = offer.get("buyLimit") or 0
+            offer_list.append({
+                "trader": trader_display_name(offer.get("trader")),
+                "traderLevel": offer.get("minTraderLevel"),
+                "buyPrice": int(buy_price),
+                "profit": int(profit),
+                "buyLimit": buy_limit,
+                "profitPerReset": int(profit * buy_limit) if buy_limit else None,
+                "taskLocked": bool(offer.get("taskUnlock")),
+            })
+
+        if not offer_list:
             continue
 
-        buy_limit = best_offer.get("buyLimit") or 0
-        profit_per_reset = int(profit * buy_limit) if buy_limit else None
-
-        profitable_items.append({
+        result_items.append({
             "name": name,
-            "trader": trader_display_name(best_offer.get("trader")),
-            "traderLevel": best_offer.get("minTraderLevel"),
-            "buyPrice": int(buy_price),
             "fleaSell": int(flea_sell_price),
             "fee": int(fee),
-            "profit": int(profit),
-            "buyLimit": buy_limit,
-            "profitPerReset": profit_per_reset,
-            "taskLocked": bool(best_offer.get("taskUnlock")),
+            "offers": offer_list,
         })
 
-    profitable_items.sort(key=lambda entry: entry["profit"], reverse=True)
-    return profitable_items
+    return result_items
 
 
 def create_app():

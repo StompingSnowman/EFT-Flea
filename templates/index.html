@@ -139,6 +139,34 @@
     background: var(--card);
     color: var(--accent);
   }
+  .trader-levels {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .trader-levels-label {
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .trader-levels label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text);
+  }
+  .trader-level-select {
+    padding: 2px 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12px;
+  }
   #status {
     color: var(--muted);
     font-size: 12px;
@@ -255,6 +283,37 @@
   <button class="tab-btn" id="tab-btn-trader" onclick="switchTab('trader')">Trader &rarr; Flea</button>
 </div>
 
+<div class="trader-levels" id="trader-levels-bar" style="display:none">
+  <span class="trader-levels-label">Your trader levels:</span>
+  <label>Prapor <select class="trader-level-select" data-trader="Prapor" onchange="renderRows()">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+  </select></label>
+  <label>Therapist <select class="trader-level-select" data-trader="Therapist" onchange="renderRows()">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+  </select></label>
+  <label>Fence <select class="trader-level-select" data-trader="Fence" onchange="renderRows()">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+  </select></label>
+  <label>Skier <select class="trader-level-select" data-trader="Skier" onchange="renderRows()">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+  </select></label>
+  <label>Peacekeeper <select class="trader-level-select" data-trader="Peacekeeper" onchange="renderRows()">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+  </select></label>
+  <label>Mechanic <select class="trader-level-select" data-trader="Mechanic" onchange="renderRows()">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+  </select></label>
+  <label>Ragman <select class="trader-level-select" data-trader="Ragman" onchange="renderRows()">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+  </select></label>
+  <label>Jaeger <select class="trader-level-select" data-trader="Jaeger" onchange="renderRows()">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+  </select></label>
+  <label>Lightkeeper <select class="trader-level-select" data-trader="Lightkeeper" onchange="renderRows()">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+  </select></label>
+</div>
+
 <div id="update-banner">
   <span id="update-text"></span>
   <span>
@@ -335,7 +394,47 @@ function switchTab(tab) {
   document.getElementById('tab-btn-trader').classList.toggle('active', tab === 'trader');
   document.getElementById('table-flea').style.display = tab === 'flea' ? '' : 'none';
   document.getElementById('table-trader').style.display = tab === 'trader' ? '' : 'none';
+  document.getElementById('trader-levels-bar').style.display = tab === 'trader' ? 'flex' : 'none';
   renderRows();
+}
+
+function getTraderLevels() {
+  const levels = {};
+  document.querySelectorAll('.trader-level-select').forEach(sel => {
+    levels[sel.dataset.trader] = Number(sel.value);
+  });
+  return levels;
+}
+
+// dataTrader holds one entry per item: { name, fleaSell, fee, offers: [...] }.
+// For the currently selected trader levels, pick whichever offer is both
+// accessible and most profitable for that item.
+function computeAccessibleTraderRows() {
+  const levels = getTraderLevels();
+  const rows = [];
+  for (const item of dataTrader) {
+    const accessible = item.offers.filter(o => o.traderLevel <= (levels[o.trader] ?? 4));
+    if (accessible.length === 0) continue;
+
+    let best = accessible[0];
+    for (const offer of accessible) {
+      if (offer.profit > best.profit) best = offer;
+    }
+
+    rows.push({
+      name: item.name,
+      fleaSell: item.fleaSell,
+      fee: item.fee,
+      trader: best.trader,
+      traderLevel: best.traderLevel,
+      buyPrice: best.buyPrice,
+      profit: best.profit,
+      buyLimit: best.buyLimit,
+      profitPerReset: best.profitPerReset,
+      taskLocked: best.taskLocked,
+    });
+  }
+  return rows;
 }
 
 function sortBy(key) {
@@ -407,7 +506,8 @@ function renderFleaRows(filter, minProfit) {
 
 function renderTraderRows(filter, minProfit) {
   const rowsEl = document.getElementById('rows-trader');
-  let filtered = dataTrader.filter(item =>
+  const accessibleRows = computeAccessibleTraderRows();
+  let filtered = accessibleRows.filter(item =>
     item.name.toLowerCase().includes(filter) && item.profit >= minProfit
   );
   filtered = sortItems(filtered, sortKeyTrader, sortDirTrader);
