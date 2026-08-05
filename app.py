@@ -10,7 +10,6 @@ from updater import check_for_update, download_and_apply_update
 from version import __version__
 
 API_URL = "https://json.tarkov.dev/pve/items"
-MIN_PROFIT = 2000
 LISTING_FEE_ESTIMATE = 2500
 EXCLUDED_TYPES = {"gun", "preset"}
 FILTER_WORDS = ["default"]
@@ -72,7 +71,10 @@ def compute_profitable_items():
             continue
 
         profit = trader_max - flea_price
-        if profit <= MIN_PROFIT:
+        if profit <= 0:
+            # Not profitable at all - the real minimum-profit threshold is
+            # applied client-side so it can be adjusted live without
+            # re-fetching from the upstream API.
             continue
 
         buy_till_rub = trader_max - LISTING_FEE_ESTIMATE

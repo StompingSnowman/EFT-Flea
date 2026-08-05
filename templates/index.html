@@ -5,29 +5,33 @@
 <title>EFT Flea</title>
 <style>
   :root {
-    --bg: #f5f6f8;
-    --card: #ffffff;
-    --border: #e2e4e9;
-    --text: #1f2328;
-    --muted: #6b7280;
-    --accent: #2563eb;
-    --profit: #15803d;
-    --row-hover: #f0f4ff;
-    --update-bg: #eff6ff;
-    --update-text: #1e40af;
+    --bg: #F0F2F7;
+    --card: #FFFFFF;
+    --border: rgba(0,0,0,0.08);
+    --text: #111827;
+    --muted: #4B5563;
+    --accent: #5B52E8;
+    --profit: #059669;
+    --row-hover: rgba(91,82,232,0.08);
+    --update-bg: rgba(91,82,232,0.10);
+    --update-text: #5B52E8;
+    --error-bg: #fef2f2;
+    --error-text: #DC2626;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #16171a;
-      --card: #1f2124;
-      --border: #2c2f34;
-      --text: #e7e9ec;
-      --muted: #9aa1ac;
-      --accent: #5b8bf5;
-      --profit: #4ade80;
-      --row-hover: #262a33;
-      --update-bg: #1e2a4a;
-      --update-text: #93c5fd;
+      --bg: #0F1117;
+      --card: #1A1D27;
+      --border: rgba(255,255,255,0.07);
+      --text: #E2E8F0;
+      --muted: #8892A4;
+      --accent: #6C63FF;
+      --profit: #10B981;
+      --row-hover: rgba(108,99,255,0.10);
+      --update-bg: rgba(108,99,255,0.12);
+      --update-text: #A78BFA;
+      --error-bg: rgba(239,68,68,0.12);
+      --error-text: #F87171;
     }
   }
   * { box-sizing: border-box; }
@@ -65,6 +69,19 @@
     font-size: 13px;
     width: 200px;
   }
+  .min-profit-label {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  #min-profit {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    width: 90px;
+  }
   #refresh {
     padding: 6px 14px;
     border: none;
@@ -88,8 +105,8 @@
     margin: 12px 20px;
     padding: 10px 14px;
     border-radius: 6px;
-    background: #fee2e2;
-    color: #991b1b;
+    background: var(--error-bg);
+    color: var(--error-text);
     font-size: 13px;
   }
   #update-banner {
@@ -141,6 +158,24 @@
   }
   th:hover { color: var(--accent); }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  th.group-header {
+    text-align: center;
+    cursor: default;
+  }
+  th.group-header:hover { color: var(--muted); }
+  .copy-btn {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 2px 6px;
+    margin-right: 8px;
+    border-radius: 4px;
+    line-height: 1;
+  }
+  .copy-btn:hover { background: var(--row-hover); color: var(--accent); }
+  .copy-btn.copied { color: var(--profit); }
   tbody tr:hover { background: var(--row-hover); }
   tbody tr:last-child td { border-bottom: none; }
   td.profit { color: var(--profit); font-weight: 600; }
@@ -157,6 +192,8 @@
   <h1>Flea Market &rarr; Trader Profit Finder</h1>
   <div class="controls">
     <input id="search" type="text" placeholder="Filter items..." oninput="renderRows()">
+    <label class="min-profit-label" for="min-profit">Min Profit</label>
+    <input id="min-profit" type="number" min="0" step="100" value="2000" oninput="renderRows()">
     <button id="refresh" onclick="refresh()">Refresh</button>
   </div>
 </header>
@@ -175,12 +212,15 @@
   <table>
     <thead>
       <tr>
-        <th onclick="sortBy('name')">Item</th>
-        <th class="num" onclick="sortBy('flea')">Flea Price</th>
-        <th class="num" onclick="sortBy('rub')">Buy Till (RUB)</th>
+        <th rowspan="2" onclick="sortBy('name')">Item</th>
+        <th class="num" rowspan="2" onclick="sortBy('flea')">Flea Price</th>
+        <th class="num group-header" colspan="3">Buy Until</th>
+        <th class="num" rowspan="2" onclick="sortBy('profit')">Profit</th>
+      </tr>
+      <tr>
+        <th class="num" onclick="sortBy('rub')">RUB</th>
         <th class="num" onclick="sortBy('usd')">USD</th>
         <th class="num" onclick="sortBy('eur')">EUR</th>
-        <th class="num" onclick="sortBy('profit')">Profit</th>
       </tr>
     </thead>
     <tbody id="rows"></tbody>
@@ -209,9 +249,12 @@ function sortBy(key) {
 
 function renderRows() {
   const filter = document.getElementById('search').value.toLowerCase();
+  const minProfit = Number(document.getElementById('min-profit').value) || 0;
   const rowsEl = document.getElementById('rows');
 
-  let filtered = data.filter(item => item.name.toLowerCase().includes(filter));
+  let filtered = data.filter(item =>
+    item.name.toLowerCase().includes(filter) && item.profit >= minProfit
+  );
   filtered.sort((a, b) => {
     let va = a[sortKey], vb = b[sortKey];
     if (typeof va === 'string') return va.localeCompare(vb) * sortDir;
@@ -225,7 +268,7 @@ function renderRows() {
 
   rowsEl.innerHTML = filtered.map(item => `
     <tr>
-      <td>${item.name}</td>
+      <td><button class="copy-btn" data-name="${escapeHtml(item.name)}" title="Copy name to clipboard">⧉</button>${escapeHtml(item.name)}</td>
       <td class="num">${fmt(item.flea)}</td>
       <td class="num">${fmt(item.rub)}</td>
       <td class="num">${fmt(item.usd)}</td>
@@ -234,6 +277,43 @@ function renderRows() {
     </tr>
   `).join('');
 }
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+  }
+}
+
+document.getElementById('rows').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.copy-btn');
+  if (!btn) return;
+  await copyToClipboard(btn.dataset.name);
+  const original = btn.textContent;
+  btn.textContent = '✓';
+  btn.classList.add('copied');
+  setTimeout(() => {
+    btn.textContent = original;
+    btn.classList.remove('copied');
+  }, 1000);
+});
 
 function setStatus(text) {
   document.getElementById('status').textContent = text;
