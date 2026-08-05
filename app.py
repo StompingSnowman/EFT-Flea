@@ -2,7 +2,6 @@ import datetime
 import math
 import os
 import sys
-import threading
 
 import requests
 from flask import Flask, jsonify, render_template, request
@@ -222,12 +221,15 @@ def create_app():
     @flask_app.post("/api/update-apply")
     def api_update_apply():
         download_url = request.get_json()["download_url"]
-        # Runs in a background thread so the HTTP response can flush before
-        # the process exits as part of the update swap.
-        threading.Thread(
-            target=download_and_apply_update, args=(download_url,), daemon=True
-        ).start()
-        return jsonify({"ok": True})
+        # Runs synchronously: on success this calls os._exit(0) itself and
+        # never returns. On failure (e.g. a truncated download) it raises,
+        # which reaches the client as a real error instead of silently
+        # dying in a background thread and leaving the UI stuck on
+        # "Updating..." forever.
+        try:
+            download_and_apply_update(download_url)
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 500
 
     return flask_app
 

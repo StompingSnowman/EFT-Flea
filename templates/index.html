@@ -13,6 +13,7 @@
     --accent: #5B52E8;
     --profit: #059669;
     --row-hover: rgba(91,82,232,0.08);
+    --copy-highlight: rgba(91,82,232,0.16);
     --update-bg: rgba(91,82,232,0.10);
     --update-text: #5B52E8;
     --error-bg: #fef2f2;
@@ -28,6 +29,7 @@
       --accent: #6C63FF;
       --profit: #10B981;
       --row-hover: rgba(108,99,255,0.10);
+      --copy-highlight: rgba(108,99,255,0.22);
       --update-bg: rgba(108,99,255,0.12);
       --update-text: #A78BFA;
       --error-bg: rgba(239,68,68,0.12);
@@ -449,6 +451,32 @@ async function copyToClipboard(text) {
   }
 }
 
+let highlightedRow = null;
+let highlightTimeout = null;
+const HIGHLIGHT_DURATION_MS = 12000;
+
+function highlightRow(row) {
+  if (highlightedRow && highlightedRow !== row) {
+    clearRowHighlight(highlightedRow);
+  }
+  clearTimeout(highlightTimeout);
+
+  row.style.transition = 'none';
+  row.style.backgroundColor = 'var(--copy-highlight)';
+  void row.offsetWidth; // force reflow so the transition below re-applies
+  row.style.transition = 'background-color 1.5s ease-out';
+
+  highlightedRow = row;
+  highlightTimeout = setTimeout(() => clearRowHighlight(row), HIGHLIGHT_DURATION_MS);
+}
+
+function clearRowHighlight(row) {
+  row.style.backgroundColor = '';
+  if (highlightedRow === row) {
+    highlightedRow = null;
+  }
+}
+
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.copy-btn');
   if (!btn) return;
@@ -459,6 +487,9 @@ document.addEventListener('click', async (e) => {
   copiedSet.add(btn.dataset.name);
   btn.textContent = '✓';
   btn.classList.add('copied');
+
+  const row = btn.closest('tr');
+  if (row) highlightRow(row);
 });
 
 function setStatus(text) {
@@ -539,15 +570,22 @@ async function applyUpdate() {
   btn.disabled = true;
   btn.textContent = 'Updating…';
   try {
-    await fetch('/api/update-apply', {
+    const response = await fetch('/api/update-apply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ download_url: pendingUpdateUrl }),
     });
-    // The app process exits itself and relaunches the new version shortly.
+    const result = await response.json();
+    if (!result.ok) {
+      showError(result.error);
+      btn.disabled = false;
+      btn.textContent = 'Update Now';
+    }
+    // If ok, the app process exits itself and relaunches the new version
+    // shortly - leave the button showing "Updating..." until then.
   } catch (e) {
-    btn.disabled = false;
-    btn.textContent = 'Update Now';
+    // The connection resets because the process exits mid-response on
+    // success - that's the expected happy path here, not a real failure.
   }
 }
 
