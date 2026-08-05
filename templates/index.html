@@ -1,0 +1,312 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EFT Flea</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --border: #e2e4e9;
+    --text: #1f2328;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --profit: #15803d;
+    --row-hover: #f0f4ff;
+    --update-bg: #eff6ff;
+    --update-text: #1e40af;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a;
+      --card: #1f2124;
+      --border: #2c2f34;
+      --text: #e7e9ec;
+      --muted: #9aa1ac;
+      --accent: #5b8bf5;
+      --profit: #4ade80;
+      --row-hover: #262a33;
+      --update-bg: #1e2a4a;
+      --update-text: #93c5fd;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+  }
+  header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  #search {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    width: 200px;
+  }
+  #refresh {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #refresh:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  #status {
+    color: var(--muted);
+    font-size: 12px;
+    padding: 6px 20px;
+  }
+  #error {
+    display: none;
+    margin: 12px 20px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    background: #fee2e2;
+    color: #991b1b;
+    font-size: 13px;
+  }
+  #update-banner {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    margin: 12px 20px 0;
+    padding: 10px 14px;
+    border-radius: 6px;
+    background: var(--update-bg);
+    color: var(--update-text);
+    font-size: 13px;
+  }
+  #update-banner button {
+    padding: 5px 12px;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: white;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 10px;
+  }
+  main {
+    padding: 12px 20px 24px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  th:hover { color: var(--accent); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:hover { background: var(--row-hover); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.profit { color: var(--profit); font-weight: 600; }
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 30px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Flea Market &rarr; Trader Profit Finder</h1>
+  <div class="controls">
+    <input id="search" type="text" placeholder="Filter items..." oninput="renderRows()">
+    <button id="refresh" onclick="refresh()">Refresh</button>
+  </div>
+</header>
+
+<div id="update-banner">
+  <span id="update-text"></span>
+  <span>
+    <button id="update-btn" onclick="applyUpdate()">Update Now</button>
+  </span>
+</div>
+
+<div id="status">Loading&hellip;</div>
+<div id="error"></div>
+
+<main>
+  <table>
+    <thead>
+      <tr>
+        <th onclick="sortBy('name')">Item</th>
+        <th class="num" onclick="sortBy('flea')">Flea Price</th>
+        <th class="num" onclick="sortBy('rub')">Buy Till (RUB)</th>
+        <th class="num" onclick="sortBy('usd')">USD</th>
+        <th class="num" onclick="sortBy('eur')">EUR</th>
+        <th class="num" onclick="sortBy('profit')">Profit</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+</main>
+
+<script>
+let data = [];
+let sortKey = 'profit';
+let sortDir = -1;
+let pendingUpdateUrl = null;
+
+function fmt(n) {
+  return n.toLocaleString();
+}
+
+function sortBy(key) {
+  if (sortKey === key) {
+    sortDir *= -1;
+  } else {
+    sortKey = key;
+    sortDir = key === 'name' ? 1 : -1;
+  }
+  renderRows();
+}
+
+function renderRows() {
+  const filter = document.getElementById('search').value.toLowerCase();
+  const rowsEl = document.getElementById('rows');
+
+  let filtered = data.filter(item => item.name.toLowerCase().includes(filter));
+  filtered.sort((a, b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (typeof va === 'string') return va.localeCompare(vb) * sortDir;
+    return (va - vb) * sortDir;
+  });
+
+  if (filtered.length === 0) {
+    rowsEl.innerHTML = '<tr><td colspan="6" class="empty">No items match.</td></tr>';
+    return;
+  }
+
+  rowsEl.innerHTML = filtered.map(item => `
+    <tr>
+      <td>${item.name}</td>
+      <td class="num">${fmt(item.flea)}</td>
+      <td class="num">${fmt(item.rub)}</td>
+      <td class="num">${fmt(item.usd)}</td>
+      <td class="num">${fmt(item.eur)}</td>
+      <td class="num profit">${fmt(item.profit)}</td>
+    </tr>
+  `).join('');
+}
+
+function setStatus(text) {
+  document.getElementById('status').textContent = text;
+}
+
+function showError(message) {
+  const el = document.getElementById('error');
+  el.textContent = message;
+  el.style.display = message ? 'block' : 'none';
+}
+
+async function refresh() {
+  const btn = document.getElementById('refresh');
+  btn.disabled = true;
+  setStatus('Refreshing…');
+  showError('');
+  try {
+    const response = await fetch('/api/items');
+    const result = await response.json();
+    if (result.ok) {
+      data = result.items;
+      renderRows();
+      setStatus(`${data.length} items above profit threshold · updated ${result.updated}`);
+    } else {
+      showError(result.error);
+      setStatus('Refresh failed.');
+    }
+  } catch (e) {
+    showError(String(e));
+    setStatus('Refresh failed.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function checkForUpdate() {
+  try {
+    const response = await fetch('/api/update-check');
+    const result = await response.json();
+    if (result.update) {
+      pendingUpdateUrl = result.update.download_url;
+      document.getElementById('update-text').textContent =
+        `Update available: v${result.update.version} (you have v${result.current_version})`;
+      document.getElementById('update-banner').style.display = 'flex';
+    }
+  } catch (e) {
+    // Silently ignore - update checks should never interrupt normal use.
+  }
+}
+
+async function applyUpdate() {
+  if (!pendingUpdateUrl) return;
+  const btn = document.getElementById('update-btn');
+  btn.disabled = true;
+  btn.textContent = 'Updating…';
+  try {
+    await fetch('/api/update-apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ download_url: pendingUpdateUrl }),
+    });
+    // The app process exits itself and relaunches the new version shortly.
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Update Now';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  refresh();
+  checkForUpdate();
+});
+</script>
+
+</body>
+</html>

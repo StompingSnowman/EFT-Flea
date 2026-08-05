@@ -1,0 +1,4 @@
+flask
+requests
+pywebview
+pythonnet; platform_system == "Windows"
