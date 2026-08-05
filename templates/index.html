@@ -96,6 +96,13 @@
     color: var(--text);
     font-size: 13px;
     width: 90px;
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  #min-profit::-webkit-outer-spin-button,
+  #min-profit::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
   #refresh {
     padding: 6px 14px;
@@ -109,6 +116,26 @@
   #refresh:disabled {
     opacity: 0.6;
     cursor: default;
+  }
+  .tab-bar {
+    display: flex;
+    gap: 6px;
+    padding: 10px 20px 0;
+  }
+  .tab-btn {
+    padding: 7px 16px;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    background: var(--bg);
+    color: var(--muted);
+    border-radius: 6px 6px 0 0;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .tab-btn.active {
+    background: var(--card);
+    color: var(--accent);
   }
   #status {
     color: var(--muted);
@@ -191,6 +218,11 @@
   }
   .copy-btn:hover { background: var(--row-hover); color: var(--accent); }
   .copy-btn.copied { color: var(--profit); }
+  .lock-icon {
+    margin-left: 6px;
+    font-size: 11px;
+    opacity: 0.7;
+  }
   tbody tr:hover { background: var(--row-hover); }
   tbody tr:last-child td { border-bottom: none; }
   td.profit { color: var(--profit); font-weight: 600; }
@@ -206,7 +238,7 @@
 <header>
   <div class="title-group">
     <div class="app-name">EFT Flea <span class="app-version">v{{ version }}</span></div>
-    <h1>Flea Market &rarr; Trader Profit Finder</h1>
+    <h1>Flea Market &harr; Trader Profit Finder</h1>
   </div>
   <div class="controls">
     <input id="search" type="text" placeholder="Filter items..." oninput="renderRows()">
@@ -215,6 +247,11 @@
     <button id="refresh" onclick="refresh()">Refresh</button>
   </div>
 </header>
+
+<div class="tab-bar">
+  <button class="tab-btn active" id="tab-btn-flea" onclick="switchTab('flea')">Flea &rarr; Trader</button>
+  <button class="tab-btn" id="tab-btn-trader" onclick="switchTab('trader')">Trader &rarr; Flea</button>
+</div>
 
 <div id="update-banner">
   <span id="update-text"></span>
@@ -227,7 +264,7 @@
 <div id="error"></div>
 
 <main>
-  <table>
+  <table id="table-flea">
     <thead>
       <tr>
         <th rowspan="2" onclick="sortBy('name')">Item</th>
@@ -241,59 +278,44 @@
         <th class="num" onclick="sortBy('eur')">EUR</th>
       </tr>
     </thead>
-    <tbody id="rows"></tbody>
+    <tbody id="rows-flea"></tbody>
+  </table>
+
+  <table id="table-trader" style="display:none">
+    <thead>
+      <tr>
+        <th onclick="sortBy('name')">Item</th>
+        <th onclick="sortBy('trader')">Trader</th>
+        <th class="num" onclick="sortBy('traderLevel')">Level</th>
+        <th class="num" onclick="sortBy('buyPrice')">Buy Price</th>
+        <th class="num" onclick="sortBy('fleaSell')">Flea Sell</th>
+        <th class="num" onclick="sortBy('fee')">Flea Fee</th>
+        <th class="num" onclick="sortBy('profit')">Profit</th>
+        <th class="num" onclick="sortBy('buyLimit')">Buy Limit</th>
+        <th class="num" onclick="sortBy('profitPerReset')">Profit/Reset</th>
+      </tr>
+    </thead>
+    <tbody id="rows-trader"></tbody>
   </table>
 </main>
 
 <script>
-let data = [];
-let sortKey = 'profit';
-let sortDir = -1;
+let activeTab = 'flea';
+
+let dataFlea = [];
+let sortKeyFlea = 'profit';
+let sortDirFlea = -1;
+let copiedNamesFlea = new Set();
+
+let dataTrader = [];
+let sortKeyTrader = 'profit';
+let sortDirTrader = -1;
+let copiedNamesTrader = new Set();
+
 let pendingUpdateUrl = null;
 
 function fmt(n) {
   return n.toLocaleString();
-}
-
-function sortBy(key) {
-  if (sortKey === key) {
-    sortDir *= -1;
-  } else {
-    sortKey = key;
-    sortDir = key === 'name' ? 1 : -1;
-  }
-  renderRows();
-}
-
-function renderRows() {
-  const filter = document.getElementById('search').value.toLowerCase();
-  const minProfit = Number(document.getElementById('min-profit').value) || 0;
-  const rowsEl = document.getElementById('rows');
-
-  let filtered = data.filter(item =>
-    item.name.toLowerCase().includes(filter) && item.profit >= minProfit
-  );
-  filtered.sort((a, b) => {
-    let va = a[sortKey], vb = b[sortKey];
-    if (typeof va === 'string') return va.localeCompare(vb) * sortDir;
-    return (va - vb) * sortDir;
-  });
-
-  if (filtered.length === 0) {
-    rowsEl.innerHTML = '<tr><td colspan="6" class="empty">No items match.</td></tr>';
-    return;
-  }
-
-  rowsEl.innerHTML = filtered.map(item => `
-    <tr>
-      <td><button class="copy-btn" data-name="${escapeHtml(item.name)}" title="Copy name to clipboard">⧉</button>${escapeHtml(item.name)}</td>
-      <td class="num">${fmt(item.flea)}</td>
-      <td class="num">${fmt(item.rub)}</td>
-      <td class="num">${fmt(item.usd)}</td>
-      <td class="num">${fmt(item.eur)}</td>
-      <td class="num profit">${fmt(item.profit)}</td>
-    </tr>
-  `).join('');
 }
 
 function escapeHtml(str) {
@@ -303,6 +325,113 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tab-btn-flea').classList.toggle('active', tab === 'flea');
+  document.getElementById('tab-btn-trader').classList.toggle('active', tab === 'trader');
+  document.getElementById('table-flea').style.display = tab === 'flea' ? '' : 'none';
+  document.getElementById('table-trader').style.display = tab === 'trader' ? '' : 'none';
+  renderRows();
+}
+
+function sortBy(key) {
+  if (activeTab === 'flea') {
+    if (sortKeyFlea === key) {
+      sortDirFlea *= -1;
+    } else {
+      sortKeyFlea = key;
+      sortDirFlea = key === 'name' ? 1 : -1;
+    }
+  } else {
+    if (sortKeyTrader === key) {
+      sortDirTrader *= -1;
+    } else {
+      sortKeyTrader = key;
+      sortDirTrader = (key === 'name' || key === 'trader') ? 1 : -1;
+    }
+  }
+  renderRows();
+}
+
+function sortItems(items, sortKey, sortDir) {
+  return items.slice().sort((a, b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (va == null) va = -1;
+    if (vb == null) vb = -1;
+    if (typeof va === 'string') return va.localeCompare(vb) * sortDir;
+    return (va - vb) * sortDir;
+  });
+}
+
+function renderRows() {
+  const filter = document.getElementById('search').value.toLowerCase();
+  const minProfit = Number(document.getElementById('min-profit').value) || 0;
+
+  if (activeTab === 'flea') {
+    renderFleaRows(filter, minProfit);
+  } else {
+    renderTraderRows(filter, minProfit);
+  }
+}
+
+function renderFleaRows(filter, minProfit) {
+  const rowsEl = document.getElementById('rows-flea');
+  let filtered = dataFlea.filter(item =>
+    item.name.toLowerCase().includes(filter) && item.profit >= minProfit
+  );
+  filtered = sortItems(filtered, sortKeyFlea, sortDirFlea);
+
+  if (filtered.length === 0) {
+    rowsEl.innerHTML = '<tr><td colspan="6" class="empty">No items match.</td></tr>';
+    return;
+  }
+
+  rowsEl.innerHTML = filtered.map(item => {
+    const copied = copiedNamesFlea.has(item.name);
+    return `
+    <tr>
+      <td><button class="copy-btn${copied ? ' copied' : ''}" data-name="${escapeHtml(item.name)}" title="Copy name to clipboard">${copied ? '✓' : '⧉'}</button>${escapeHtml(item.name)}</td>
+      <td class="num">${fmt(item.flea)}</td>
+      <td class="num">${fmt(item.rub)}</td>
+      <td class="num">${fmt(item.usd)}</td>
+      <td class="num">${fmt(item.eur)}</td>
+      <td class="num profit">${fmt(item.profit)}</td>
+    </tr>
+  `;
+  }).join('');
+}
+
+function renderTraderRows(filter, minProfit) {
+  const rowsEl = document.getElementById('rows-trader');
+  let filtered = dataTrader.filter(item =>
+    item.name.toLowerCase().includes(filter) && item.profit >= minProfit
+  );
+  filtered = sortItems(filtered, sortKeyTrader, sortDirTrader);
+
+  if (filtered.length === 0) {
+    rowsEl.innerHTML = '<tr><td colspan="9" class="empty">No items match.</td></tr>';
+    return;
+  }
+
+  rowsEl.innerHTML = filtered.map(item => {
+    const copied = copiedNamesTrader.has(item.name);
+    const lock = item.taskLocked ? '<span class="lock-icon" title="Requires a task to unlock this price">&#128274;</span>' : '';
+    return `
+    <tr>
+      <td><button class="copy-btn${copied ? ' copied' : ''}" data-name="${escapeHtml(item.name)}" title="Copy name to clipboard">${copied ? '✓' : '⧉'}</button>${escapeHtml(item.name)}${lock}</td>
+      <td>${escapeHtml(item.trader)}</td>
+      <td class="num">LL${item.traderLevel}</td>
+      <td class="num">${fmt(item.buyPrice)}</td>
+      <td class="num">${fmt(item.fleaSell)}</td>
+      <td class="num">${fmt(item.fee)}</td>
+      <td class="num profit">${fmt(item.profit)}</td>
+      <td class="num">${item.buyLimit || '&mdash;'}</td>
+      <td class="num">${item.profitPerReset != null ? fmt(item.profitPerReset) : '&mdash;'}</td>
+    </tr>
+  `;
+  }).join('');
 }
 
 async function copyToClipboard(text) {
@@ -320,17 +449,16 @@ async function copyToClipboard(text) {
   }
 }
 
-document.getElementById('rows').addEventListener('click', async (e) => {
+document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.copy-btn');
   if (!btn) return;
+  // Always re-copy, even if already showing the checkmark - covers the
+  // case where the first copy silently failed or got overwritten.
   await copyToClipboard(btn.dataset.name);
-  const original = btn.textContent;
+  const copiedSet = btn.closest('#rows-flea') ? copiedNamesFlea : copiedNamesTrader;
+  copiedSet.add(btn.dataset.name);
   btn.textContent = '✓';
   btn.classList.add('copied');
-  setTimeout(() => {
-    btn.textContent = original;
-    btn.classList.remove('copied');
-  }, 1000);
 });
 
 function setStatus(text) {
@@ -349,16 +477,39 @@ async function refresh() {
   setStatus('Refreshing…');
   showError('');
   try {
-    const response = await fetch('/api/items');
-    const result = await response.json();
-    if (result.ok) {
-      data = result.items;
-      renderRows();
-      setStatus(`${data.length} items above profit threshold · updated ${result.updated}`);
+    const [fleaResp, traderResp] = await Promise.all([
+      fetch('/api/items'),
+      fetch('/api/trader-to-flea'),
+    ]);
+    const fleaResult = await fleaResp.json();
+    const traderResult = await traderResp.json();
+
+    let errors = [];
+    let updated = '';
+
+    if (fleaResult.ok) {
+      dataFlea = fleaResult.items;
+      copiedNamesFlea.clear();
+      updated = fleaResult.updated;
     } else {
-      showError(result.error);
-      setStatus('Refresh failed.');
+      errors.push(fleaResult.error);
     }
+
+    if (traderResult.ok) {
+      dataTrader = traderResult.items;
+      copiedNamesTrader.clear();
+      updated = updated || traderResult.updated;
+    } else {
+      errors.push(traderResult.error);
+    }
+
+    renderRows();
+
+    if (errors.length) {
+      showError(errors.join(' | '));
+    }
+    const count = activeTab === 'flea' ? dataFlea.length : dataTrader.length;
+    setStatus(`${count} items above profit threshold · updated ${updated}`);
   } catch (e) {
     showError(String(e));
     setStatus('Refresh failed.');

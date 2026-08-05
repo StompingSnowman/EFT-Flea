@@ -1,4 +1,5 @@
 import datetime
+import math
 import os
 import sys
 import threading
@@ -6,6 +7,7 @@ import threading
 import requests
 from flask import Flask, jsonify, render_template, request
 
+from traders import trader_display_name
 from updater import check_for_update, download_and_apply_update
 from version import __version__
 
@@ -13,6 +15,33 @@ API_URL = "https://json.tarkov.dev/pve/items"
 LISTING_FEE_ESTIMATE = 2500
 EXCLUDED_TYPES = {"gun", "preset"}
 FILTER_WORDS = ["default"]
+
+# Escape from Tarkov's flea market listing fee formula:
+#   Fee = VO * Ti * 4^PO + VR * Tr * 4^PR
+# where VO = base price, VR = listing price, and whichever of PO/PR points
+# "away from" base price gets an extra ^1.08 exponent. Ti/Tr fixed at 0.05
+# per explicit choice (no Intelligence Center / Hideout Management discount
+# modeled - this is the raw, undiscounted fee).
+FLEA_FEE_TAX = 0.05
+FLEA_FEE_BASE = 4
+FLEA_FEE_EXPONENT_BOOST = 1.08
+
+
+def compute_flea_fee(base_price, listing_price):
+    if not base_price or not listing_price or base_price <= 0 or listing_price <= 0:
+        return 0
+
+    if listing_price < base_price:
+        po = math.log10(base_price / listing_price) ** FLEA_FEE_EXPONENT_BOOST
+        pr = math.log10(listing_price / base_price)
+    else:
+        po = math.log10(base_price / listing_price)
+        pr = math.log10(listing_price / base_price) ** FLEA_FEE_EXPONENT_BOOST
+
+    return (
+        base_price * FLEA_FEE_TAX * (FLEA_FEE_BASE ** po)
+        + listing_price * FLEA_FEE_TAX * (FLEA_FEE_BASE ** pr)
+    )
 
 
 def resource_path(relative_path):
@@ -91,6 +120,63 @@ def compute_profitable_items():
     return profitable_items
 
 
+def compute_trader_to_flea_items():
+    items = fetch_items()
+    profitable_items = []
+
+    for item_id, item in items.items():
+        normalized_name = item.get("normalizedName")
+        if not normalized_name:
+            continue
+
+        item_types = set(item.get("types") or [])
+        if item_types & EXCLUDED_TYPES:
+            continue
+
+        name = display_name(normalized_name)
+        if name_contains_filtered_word(name, FILTER_WORDS):
+            continue
+
+        offers = [o for o in (item.get("buyFromTrader") or []) if o.get("priceRUB")]
+        if not offers:
+            continue
+
+        # Cheapest way to acquire the item, mirroring how the Flea->Trader
+        # side picks the single best (highest) trader payout.
+        best_offer = min(offers, key=lambda o: o["priceRUB"])
+        buy_price = best_offer["priceRUB"]
+
+        base_price = item.get("basePrice")
+        flea_sell_price = item.get("lastLowPrice")
+        if not base_price or not flea_sell_price:
+            continue
+
+        fee = compute_flea_fee(base_price, flea_sell_price)
+        net_received = flea_sell_price - fee
+        profit = net_received - buy_price
+        if profit <= 0:
+            continue
+
+        buy_limit = best_offer.get("buyLimit") or 0
+        profit_per_reset = int(profit * buy_limit) if buy_limit else None
+
+        profitable_items.append({
+            "name": name,
+            "trader": trader_display_name(best_offer.get("trader")),
+            "traderLevel": best_offer.get("minTraderLevel"),
+            "buyPrice": int(buy_price),
+            "fleaSell": int(flea_sell_price),
+            "fee": int(fee),
+            "profit": int(profit),
+            "buyLimit": buy_limit,
+            "profitPerReset": profit_per_reset,
+            "taskLocked": bool(best_offer.get("taskUnlock")),
+        })
+
+    profitable_items.sort(key=lambda entry: entry["profit"], reverse=True)
+    return profitable_items
+
+
 def create_app():
     flask_app = Flask(__name__, template_folder=resource_path("templates"))
 
@@ -102,6 +188,20 @@ def create_app():
     def api_items():
         try:
             items = compute_profitable_items()
+            return jsonify({
+                "ok": True,
+                "items": items,
+                "updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            })
+        except requests.exceptions.RequestException as exc:
+            return jsonify({"ok": False, "error": f"Network error: {exc}"}), 502
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 500
+
+    @flask_app.get("/api/trader-to-flea")
+    def api_trader_to_flea():
+        try:
+            items = compute_trader_to_flea_items()
             return jsonify({
                 "ok": True,
                 "items": items,
