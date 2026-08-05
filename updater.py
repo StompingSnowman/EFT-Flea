@@ -1,9 +1,9 @@
-import json
 import os
 import subprocess
 import sys
 import tempfile
-import urllib.request
+
+import requests
 
 from version import __version__
 
@@ -18,15 +18,16 @@ def _parse_version(version_string):
 def check_for_update():
     """Returns update info dict if a newer release is available, else None."""
     try:
-        request = urllib.request.Request(
+        response = requests.get(
             LATEST_RELEASE_API,
             headers={
                 "Accept": "application/vnd.github+json",
                 "User-Agent": "EFT-Flea-Updater",
             },
+            timeout=5,
         )
-        with urllib.request.urlopen(request, timeout=5) as response:
-            release = json.load(response)
+        response.raise_for_status()
+        release = response.json()
 
         latest_version = release["tag_name"]
         if _parse_version(latest_version) <= _parse_version(__version__):
@@ -60,7 +61,11 @@ def download_and_apply_update(download_url):
     exe_dir = os.path.dirname(current_exe)
     downloaded_path = os.path.join(exe_dir, "_update_download.exe")
 
-    urllib.request.urlretrieve(download_url, downloaded_path)
+    response = requests.get(download_url, stream=True, timeout=30)
+    response.raise_for_status()
+    with open(downloaded_path, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
 
     helper_script = os.path.join(tempfile.gettempdir(), "eft_flea_apply_update.bat")
     with open(helper_script, "w") as f:

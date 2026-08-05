@@ -96,7 +96,7 @@ def create_app():
 
     @flask_app.get("/")
     def index():
-        return render_template("index.html")
+        return render_template("index.html", version=__version__)
 
     @flask_app.get("/api/items")
     def api_items():

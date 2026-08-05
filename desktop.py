@@ -4,6 +4,7 @@ import threading
 import webview
 
 from app import app
+from version import __version__
 
 
 def find_free_port():
@@ -25,7 +26,7 @@ def main():
     server_thread.start()
 
     webview.create_window(
-        "EFT Flea",
+        f"EFT Flea v{__version__}",
         url=f"http://127.0.0.1:{port}",
         width=980,
         height=680,
