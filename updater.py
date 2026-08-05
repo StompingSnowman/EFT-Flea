@@ -61,6 +61,7 @@ def download_and_apply_update(download_url):
 
     current_exe = sys.executable
     exe_dir = os.path.dirname(current_exe)
+    exe_name = os.path.basename(current_exe)
     downloaded_path = os.path.join(exe_dir, "_update_download.exe")
     backup_path = current_exe + ".bak"
 
@@ -98,7 +99,16 @@ def download_and_apply_update(download_url):
             f'    move /y "{backup_path}" "{current_exe}" >nul 2>&1\r\n'
             "    exit /b 1\r\n"
             ")\r\n"
+            # Brief pause before launching - a freshly-written exe can get
+            # briefly locked by antivirus real-time scanning, which fails
+            # an immediate launch attempt even though the file is fine.
+            "timeout /t 2 /nobreak > NUL\r\n"
             f'start "" "{current_exe}"\r\n'
+            "timeout /t 2 /nobreak > NUL\r\n"
+            f'tasklist /FI "IMAGENAME eq {exe_name}" 2>NUL | find /I "{exe_name}" >NUL\r\n'
+            "if errorlevel 1 (\r\n"
+            f'    start "" "{current_exe}"\r\n'
+            ")\r\n"
             'del "%~f0"\r\n'
         )
 
