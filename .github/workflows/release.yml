@@ -49,7 +49,7 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile --windowed --add-data "templates;templates" --name EFT-Flea desktop.py
+          pyinstaller --onefile --windowed --add-data "templates;templates" --collect-all clr_loader --collect-all pythonnet --collect-all clr --name EFT-Flea desktop.py
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
