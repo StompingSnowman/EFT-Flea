@@ -6,7 +6,7 @@ import sys
 import requests
 from flask import Flask, jsonify, render_template, request
 
-from traders import trader_display_name
+from traders import is_included_trader, trader_display_name
 from updater import check_for_update, download_and_apply_update
 from version import __version__
 
@@ -104,10 +104,10 @@ def compute_profitable_items():
         if name_contains_filtered_word(name, FILTER_WORDS):
             continue
 
-        if (item.get("lastOfferCount") or 0) < MIN_OFFER_COUNT:
-            continue
-
-        flea_price = conservative_flea_price(item, "buy")
+        # No offer-count/conservative-pricing gate here: you're only ever
+        # the buyer on this side, and trader sales are instant/guaranteed,
+        # so any currently-listed profitable item is actionable as-is.
+        flea_price = item.get("lastLowPrice")
         if not flea_price:
             continue
 
@@ -165,7 +165,10 @@ def compute_trader_to_flea_items():
         if (item.get("lastOfferCount") or 0) < MIN_OFFER_COUNT:
             continue
 
-        offers = [o for o in (item.get("buyFromTrader") or []) if o.get("priceRUB")]
+        offers = [
+            o for o in (item.get("buyFromTrader") or [])
+            if o.get("priceRUB") and is_included_trader(o.get("trader"))
+        ]
         if not offers:
             continue
 

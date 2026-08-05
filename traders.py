@@ -9,9 +9,23 @@ TRADER_NAMES = {
     "5ac3b934156ae10c4430e83c": "ragman",
     "5c0647fdd443bc2504c2d371": "jaeger",
     "638f541a29ffd1183d187f57": "lightkeeper",
+    "6617beeaa9cfa777ca915b7c": "ref",
+}
+
+# Traders included in the Trader -> Flea calculator's level-based
+# filtering. Fence (reputation-driven, highly volatile pricing) and
+# Lightkeeper (requires extensive quest progression to even unlock) are
+# excluded rather than left unrestricted.
+INCLUDED_TRADERS = {
+    "prapor", "therapist", "skier", "peacekeeper",
+    "mechanic", "ragman", "jaeger", "ref",
 }
 
 
 def trader_display_name(trader_id):
     normalized = TRADER_NAMES.get(trader_id)
     return normalized.title() if normalized else trader_id
+
+
+def is_included_trader(trader_id):
+    return TRADER_NAMES.get(trader_id) in INCLUDED_TRADERS

@@ -52,12 +52,6 @@
     border-bottom: 1px solid var(--border);
     background: var(--card);
   }
-  header h1 {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--muted);
-    margin: 0;
-  }
   .title-group {
     display: flex;
     flex-direction: column;
@@ -140,10 +134,9 @@
     color: var(--accent);
   }
   .trader-levels {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
     padding: 10px 20px;
     background: var(--card);
     border-bottom: 1px solid var(--border);
@@ -153,10 +146,17 @@
     color: var(--muted);
     font-weight: 500;
   }
-  .trader-levels label {
+  .trader-levels-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px 24px;
+    max-width: 560px;
+  }
+  .trader-levels-grid label {
     display: flex;
     align-items: center;
-    gap: 4px;
+    justify-content: space-between;
+    gap: 6px;
     color: var(--text);
   }
   .trader-level-select {
@@ -268,7 +268,6 @@
 <header>
   <div class="title-group">
     <div class="app-name">EFT Flea <span class="app-version">v{{ version }}</span></div>
-    <h1>Flea Market &harr; Trader Profit Finder</h1>
   </div>
   <div class="controls">
     <input id="search" type="text" placeholder="Filter items..." oninput="renderRows()">
@@ -284,34 +283,33 @@
 </div>
 
 <div class="trader-levels" id="trader-levels-bar" style="display:none">
-  <span class="trader-levels-label">Your trader levels:</span>
-  <label>Prapor <select class="trader-level-select" data-trader="Prapor" onchange="renderRows()">
-    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-  </select></label>
-  <label>Therapist <select class="trader-level-select" data-trader="Therapist" onchange="renderRows()">
-    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-  </select></label>
-  <label>Fence <select class="trader-level-select" data-trader="Fence" onchange="renderRows()">
-    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-  </select></label>
-  <label>Skier <select class="trader-level-select" data-trader="Skier" onchange="renderRows()">
-    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-  </select></label>
-  <label>Peacekeeper <select class="trader-level-select" data-trader="Peacekeeper" onchange="renderRows()">
-    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-  </select></label>
-  <label>Mechanic <select class="trader-level-select" data-trader="Mechanic" onchange="renderRows()">
-    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-  </select></label>
-  <label>Ragman <select class="trader-level-select" data-trader="Ragman" onchange="renderRows()">
-    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-  </select></label>
-  <label>Jaeger <select class="trader-level-select" data-trader="Jaeger" onchange="renderRows()">
-    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-  </select></label>
-  <label>Lightkeeper <select class="trader-level-select" data-trader="Lightkeeper" onchange="renderRows()">
-    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-  </select></label>
+  <div class="trader-levels-label">Your trader levels:</div>
+  <div class="trader-levels-grid">
+    <label>Prapor <select class="trader-level-select" data-trader="Prapor" onchange="renderRows()">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+    </select></label>
+    <label>Therapist <select class="trader-level-select" data-trader="Therapist" onchange="renderRows()">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+    </select></label>
+    <label>Skier <select class="trader-level-select" data-trader="Skier" onchange="renderRows()">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+    </select></label>
+    <label>Peacekeeper <select class="trader-level-select" data-trader="Peacekeeper" onchange="renderRows()">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+    </select></label>
+    <label>Mechanic <select class="trader-level-select" data-trader="Mechanic" onchange="renderRows()">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+    </select></label>
+    <label>Ragman <select class="trader-level-select" data-trader="Ragman" onchange="renderRows()">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+    </select></label>
+    <label>Jaeger <select class="trader-level-select" data-trader="Jaeger" onchange="renderRows()">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+    </select></label>
+    <label>Ref <select class="trader-level-select" data-trader="Ref" onchange="renderRows()">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+    </select></label>
+  </div>
 </div>
 
 <div id="update-banner">
