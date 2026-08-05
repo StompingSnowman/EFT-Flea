@@ -1,4 +1,8 @@
+# Core backend dependencies only - this is the complete requirements file
+# for running app.py as a plain web service (e.g. on Azure App Service via
+# gunicorn). Desktop-only extras (pywebview, pythonnet) live in
+# requirements-desktop.txt so they never get installed into a headless
+# web deployment.
 flask
 requests
-pywebview
-pythonnet; platform_system == "Windows"
+gunicorn

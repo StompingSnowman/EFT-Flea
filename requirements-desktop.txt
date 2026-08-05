@@ -1,0 +1,5 @@
+# Everything needed to run/build the standalone desktop app (desktop.py),
+# on top of the core backend dependencies.
+-r requirements.txt
+pywebview
+pythonnet; platform_system == "Windows"
