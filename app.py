@@ -1,4 +1,5 @@
 import datetime
+import json
 import math
 import os
 import sys
@@ -12,7 +13,18 @@ from version import __version__
 
 API_URL = "https://json.tarkov.dev/pve/items"
 LISTING_FEE_ESTIMATE = 2500
+
+# Guns/presets: excluded from both directions - their price is unreliable
+# regardless of which mods happen to be attached to a given listing.
 EXCLUDED_TYPES = {"gun", "preset"}
+
+# Weapon mods: excluded from Trader->Flea only. High offer counts don't
+# reliably mean a mod actually sells - cheap/junk mods pile up on the flea
+# just as easily as ones in real demand, so this side needs the extra
+# exclusion. Not relevant for Flea->Trader, where you never depend on the
+# item selling on flea at all.
+TRADER_TO_FLEA_EXCLUDED_TYPES = EXCLUDED_TYPES | {"mods"}
+
 FILTER_WORDS = ["default"]
 
 # An item with fewer than this many active flea listings is treated as
@@ -53,6 +65,28 @@ def resource_path(relative_path):
     # fall back to the script's own directory when running unfrozen.
     base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base_path, relative_path)
+
+
+def settings_path():
+    # Per-user AppData, not next to the exe - survives updates/redownloads
+    # and matches where a real Windows app is expected to keep its config.
+    base_dir = os.getenv("APPDATA") or os.path.expanduser("~")
+    settings_dir = os.path.join(base_dir, "EFT-Flea")
+    os.makedirs(settings_dir, exist_ok=True)
+    return os.path.join(settings_dir, "settings.json")
+
+
+def load_settings():
+    try:
+        with open(settings_path(), "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_settings(data):
+    with open(settings_path(), "w") as f:
+        json.dump(data, f)
 
 
 def fetch_items():
@@ -155,7 +189,7 @@ def compute_trader_to_flea_items():
             continue
 
         item_types = set(item.get("types") or [])
-        if item_types & EXCLUDED_TYPES:
+        if item_types & TRADER_TO_FLEA_EXCLUDED_TYPES:
             continue
 
         name = display_name(normalized_name)
@@ -245,6 +279,15 @@ def create_app():
             return jsonify({"ok": False, "error": f"Network error: {exc}"}), 502
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc)}), 500
+
+    @flask_app.get("/api/settings")
+    def api_get_settings():
+        return jsonify(load_settings())
+
+    @flask_app.post("/api/settings")
+    def api_save_settings():
+        save_settings(request.get_json() or {})
+        return jsonify({"ok": True})
 
     @flask_app.get("/api/update-check")
     def api_update_check():

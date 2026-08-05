@@ -272,7 +272,7 @@
   <div class="controls">
     <input id="search" type="text" placeholder="Filter items..." oninput="renderRows()">
     <label class="min-profit-label" for="min-profit">Min Profit</label>
-    <input id="min-profit" type="number" min="0" step="100" value="2000" oninput="renderRows()">
+    <input id="min-profit" type="number" min="0" step="100" value="2000" oninput="renderRows(); saveSettings()">
     <button id="refresh" onclick="refresh()">Refresh</button>
   </div>
 </header>
@@ -285,28 +285,28 @@
 <div class="trader-levels" id="trader-levels-bar" style="display:none">
   <div class="trader-levels-label">Your trader levels:</div>
   <div class="trader-levels-grid">
-    <label>Prapor <select class="trader-level-select" data-trader="Prapor" onchange="renderRows()">
+    <label>Prapor <select class="trader-level-select" data-trader="Prapor" onchange="renderRows(); saveSettings()">
       <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
     </select></label>
-    <label>Therapist <select class="trader-level-select" data-trader="Therapist" onchange="renderRows()">
+    <label>Therapist <select class="trader-level-select" data-trader="Therapist" onchange="renderRows(); saveSettings()">
       <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
     </select></label>
-    <label>Skier <select class="trader-level-select" data-trader="Skier" onchange="renderRows()">
+    <label>Skier <select class="trader-level-select" data-trader="Skier" onchange="renderRows(); saveSettings()">
       <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
     </select></label>
-    <label>Peacekeeper <select class="trader-level-select" data-trader="Peacekeeper" onchange="renderRows()">
+    <label>Peacekeeper <select class="trader-level-select" data-trader="Peacekeeper" onchange="renderRows(); saveSettings()">
       <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
     </select></label>
-    <label>Mechanic <select class="trader-level-select" data-trader="Mechanic" onchange="renderRows()">
+    <label>Mechanic <select class="trader-level-select" data-trader="Mechanic" onchange="renderRows(); saveSettings()">
       <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
     </select></label>
-    <label>Ragman <select class="trader-level-select" data-trader="Ragman" onchange="renderRows()">
+    <label>Ragman <select class="trader-level-select" data-trader="Ragman" onchange="renderRows(); saveSettings()">
       <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
     </select></label>
-    <label>Jaeger <select class="trader-level-select" data-trader="Jaeger" onchange="renderRows()">
+    <label>Jaeger <select class="trader-level-select" data-trader="Jaeger" onchange="renderRows(); saveSettings()">
       <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
     </select></label>
-    <label>Ref <select class="trader-level-select" data-trader="Ref" onchange="renderRows()">
+    <label>Ref <select class="trader-level-select" data-trader="Ref" onchange="renderRows(); saveSettings()">
       <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
     </select></label>
   </div>
@@ -394,6 +394,45 @@ function switchTab(tab) {
   document.getElementById('table-trader').style.display = tab === 'trader' ? '' : 'none';
   document.getElementById('trader-levels-bar').style.display = tab === 'trader' ? 'flex' : 'none';
   renderRows();
+  saveSettings();
+}
+
+async function saveSettings() {
+  try {
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        minProfit: document.getElementById('min-profit').value,
+        traderLevels: getTraderLevels(),
+        activeTab: activeTab,
+      }),
+    });
+  } catch (e) {
+    // Non-critical - just means settings won't be remembered this time.
+  }
+}
+
+async function loadSettings() {
+  try {
+    const response = await fetch('/api/settings');
+    const settings = await response.json();
+
+    if (settings.minProfit != null) {
+      document.getElementById('min-profit').value = settings.minProfit;
+    }
+    if (settings.traderLevels) {
+      document.querySelectorAll('.trader-level-select').forEach(sel => {
+        const saved = settings.traderLevels[sel.dataset.trader];
+        if (saved) sel.value = saved;
+      });
+    }
+    if (settings.activeTab) {
+      switchTab(settings.activeTab);
+    }
+  } catch (e) {
+    // No saved settings yet, or failed to load - defaults are fine.
+  }
 }
 
 function getTraderLevels() {
@@ -687,7 +726,8 @@ async function applyUpdate() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadSettings();
   refresh();
   checkForUpdate();
 });
