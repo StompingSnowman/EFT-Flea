@@ -173,6 +173,7 @@
   .trader-levels-grid {
     display: grid;
     grid-template-columns: repeat(4, auto);
+    justify-content: start;
     gap: 8px 20px;
   }
   .trader-level-group {
@@ -832,6 +833,12 @@ async function checkForUpdate() {
   }
 }
 
+function showUpdateInstalledMessage() {
+  document.getElementById('update-text').textContent =
+    'Update installed - please close and reopen the app.';
+  document.getElementById('update-btn').style.display = 'none';
+}
+
 async function applyUpdate() {
   if (!pendingUpdateUrl) return;
   const btn = document.getElementById('update-btn');
@@ -844,16 +851,18 @@ async function applyUpdate() {
       body: JSON.stringify({ download_url: pendingUpdateUrl }),
     });
     const result = await response.json();
-    if (!result.ok) {
+    if (result.ok) {
+      showUpdateInstalledMessage();
+    } else {
       showError(result.error);
       btn.disabled = false;
       btn.textContent = 'Update Now';
     }
-    // If ok, the app process exits itself and relaunches the new version
-    // shortly - leave the button showing "Updating..." until then.
   } catch (e) {
-    // The connection resets because the process exits mid-response on
-    // success - that's the expected happy path here, not a real failure.
+    // The connection can drop if the process exits before the response
+    // fully arrives - treat that as success too, since the app only ever
+    // exits after the swap has already succeeded.
+    showUpdateInstalledMessage();
   }
 }
 

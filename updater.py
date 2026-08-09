@@ -54,8 +54,15 @@ def check_for_update():
 def download_and_apply_update(download_url):
     """Downloads the new exe, verifies it downloaded completely, then hands
     off to a helper script that waits for this process to exit, backs up
-    the current exe, swaps in the new one (rolling back on failure), and
-    relaunches it."""
+    the current exe, and swaps in the new one (rolling back on failure).
+
+    Deliberately does NOT relaunch the app automatically. Every attempt at
+    an automatic relaunch immediately after the swap has proven unreliable
+    (a freshly-written exe can fail a DLL load, most likely antivirus
+    briefly locking it) - no amount of added delay fixed it. Manual
+    reopening has a perfect track record across every such incident, since
+    it naturally happens some seconds later. The caller is responsible for
+    telling the user to reopen the app after this returns successfully."""
     if not getattr(sys, "frozen", False):
         raise RuntimeError("Self-update only works from a packaged executable.")
 
@@ -98,23 +105,7 @@ def download_and_apply_update(download_url):
             f'    move /y "{backup_path}" "{current_exe}" >nul 2>&1\r\n'
             "    exit /b 1\r\n"
             ")\r\n"
-            # A freshly-written exe can get locked by antivirus real-time
-            # scanning long enough that an immediate launch fails with a
-            # DLL-load error, even though the file itself is fine.
-            #
-            # A retry-after-checking-if-it's-running approach doesn't work
-            # here: when the launch fails, PyInstaller's bootloader shows a
-            # blocking error dialog and the process just sits there waiting
-            # for the user to click OK - it never exits. That means "is a
-            # process with this name running" is true whether the launch
-            # succeeded OR failed-with-a-dialog-open, so a check like that
-            # can never actually detect the failure to retry on. The only
-            # thing that's actually shown to help is giving antivirus more
-            # time *before* the one attempt, not retrying after.
-            "timeout /t 8 /nobreak > NUL\r\n"
-            f'start "" "{current_exe}"\r\n'
             'del "%~f0"\r\n'
         )
 
     subprocess.Popen(["cmd", "/c", "start", "", helper_script])
-    os._exit(0)

@@ -3,6 +3,8 @@ import json
 import math
 import os
 import sys
+import threading
+import time
 
 import requests
 from flask import Flask, jsonify, render_template, request
@@ -304,15 +306,24 @@ def create_app():
     @flask_app.post("/api/update-apply")
     def api_update_apply():
         download_url = request.get_json()["download_url"]
-        # Runs synchronously: on success this calls os._exit(0) itself and
-        # never returns. On failure (e.g. a truncated download) it raises,
-        # which reaches the client as a real error instead of silently
-        # dying in a background thread and leaving the UI stuck on
-        # "Updating..." forever.
         try:
             download_and_apply_update(download_url)
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc)}), 500
+
+        # Exit on a short delay from a background thread, so this response
+        # actually reaches the client first instead of the process dying
+        # mid-request. The app deliberately does not relaunch itself - see
+        # download_and_apply_update's docstring for why.
+        def delayed_exit():
+            time.sleep(1)
+            os._exit(0)
+
+        threading.Thread(target=delayed_exit, daemon=True).start()
+        return jsonify({
+            "ok": True,
+            "message": "Update installed. Please close and reopen the app.",
+        })
 
     return flask_app
 
