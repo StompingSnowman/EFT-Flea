@@ -172,19 +172,19 @@
   }
   .trader-levels-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(4, auto);
     gap: 8px 20px;
-    max-width: 560px;
   }
   .trader-level-group {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 6px;
   }
   .trader-level-group .trader-name {
     color: var(--text);
     white-space: nowrap;
+    width: 80px;
+    flex-shrink: 0;
   }
   .level-btns {
     display: flex;
