@@ -61,7 +61,6 @@ def download_and_apply_update(download_url):
 
     current_exe = sys.executable
     exe_dir = os.path.dirname(current_exe)
-    exe_name = os.path.basename(current_exe)
     downloaded_path = os.path.join(exe_dir, "_update_download.exe")
     backup_path = current_exe + ".bak"
 
@@ -100,20 +99,20 @@ def download_and_apply_update(download_url):
             "    exit /b 1\r\n"
             ")\r\n"
             # A freshly-written exe can get locked by antivirus real-time
-            # scanning for longer than a couple seconds, which fails an
-            # early launch attempt even though the file itself is fine.
-            # Checking "is it running" right after launch is unreliable too
-            # - a process that's about to crash still briefly shows up in
-            # tasklist - so wait a beat *after* launching before checking,
-            # and give it several attempts with growing delays.
-            "set ATTEMPTS=0\r\n"
-            ":launch\r\n"
-            "set /a ATTEMPTS+=1\r\n"
-            "timeout /t 3 /nobreak > NUL\r\n"
+            # scanning long enough that an immediate launch fails with a
+            # DLL-load error, even though the file itself is fine.
+            #
+            # A retry-after-checking-if-it's-running approach doesn't work
+            # here: when the launch fails, PyInstaller's bootloader shows a
+            # blocking error dialog and the process just sits there waiting
+            # for the user to click OK - it never exits. That means "is a
+            # process with this name running" is true whether the launch
+            # succeeded OR failed-with-a-dialog-open, so a check like that
+            # can never actually detect the failure to retry on. The only
+            # thing that's actually shown to help is giving antivirus more
+            # time *before* the one attempt, not retrying after.
+            "timeout /t 8 /nobreak > NUL\r\n"
             f'start "" "{current_exe}"\r\n'
-            "timeout /t 4 /nobreak > NUL\r\n"
-            f'tasklist /FI "IMAGENAME eq {exe_name}" 2>NUL | find /I "{exe_name}" >NUL\r\n'
-            "if errorlevel 1 if %ATTEMPTS% LSS 4 goto launch\r\n"
             'del "%~f0"\r\n'
         )
 
