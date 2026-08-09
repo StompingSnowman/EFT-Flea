@@ -11,7 +11,8 @@ from traders import is_included_trader, trader_display_name
 from updater import check_for_update, download_and_apply_update
 from version import __version__
 
-API_URL = "https://json.tarkov.dev/pve/items"
+VALID_GAME_MODES = {"regular", "pve", "pvp-season"}
+DEFAULT_GAME_MODE = "pve"
 LISTING_FEE_ESTIMATE = 2500
 
 # Guns/presets: excluded from both directions - their price is unreliable
@@ -89,9 +90,11 @@ def save_settings(data):
         json.dump(data, f)
 
 
-def fetch_items():
+def fetch_items(game_mode=DEFAULT_GAME_MODE):
+    if game_mode not in VALID_GAME_MODES:
+        game_mode = DEFAULT_GAME_MODE
     response = requests.get(
-        API_URL,
+        f"https://json.tarkov.dev/{game_mode}/items",
         headers={"User-Agent": "EFT-Flea/1.0 (contact: you@example.com)"},
     )
     response.raise_for_status()
@@ -121,8 +124,8 @@ def conservative_flea_price(item, side):
     return max(candidates) if side == "buy" else min(candidates)
 
 
-def compute_profitable_items():
-    items = fetch_items()
+def compute_profitable_items(game_mode=DEFAULT_GAME_MODE):
+    items = fetch_items(game_mode)
     profitable_items = []
 
     for item_id, item in items.items():
@@ -175,12 +178,12 @@ def compute_profitable_items():
     return profitable_items
 
 
-def compute_trader_to_flea_items():
+def compute_trader_to_flea_items(game_mode=DEFAULT_GAME_MODE):
     """Returns, per item, every trader offer that's profitable on its own -
     not just the single cheapest one - so the client can pick whichever
     offer is actually accessible once a trader-level filter is applied,
     without needing to re-fetch from the backend."""
-    items = fetch_items()
+    items = fetch_items(game_mode)
     result_items = []
 
     for item_id, item in items.items():
@@ -254,8 +257,9 @@ def create_app():
 
     @flask_app.get("/api/items")
     def api_items():
+        game_mode = request.args.get("mode", DEFAULT_GAME_MODE)
         try:
-            items = compute_profitable_items()
+            items = compute_profitable_items(game_mode)
             return jsonify({
                 "ok": True,
                 "items": items,
@@ -268,8 +272,9 @@ def create_app():
 
     @flask_app.get("/api/trader-to-flea")
     def api_trader_to_flea():
+        game_mode = request.args.get("mode", DEFAULT_GAME_MODE)
         try:
-            items = compute_trader_to_flea_items()
+            items = compute_trader_to_flea_items(game_mode)
             return jsonify({
                 "ok": True,
                 "items": items,
