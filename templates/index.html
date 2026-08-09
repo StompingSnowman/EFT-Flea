@@ -71,13 +71,24 @@
     font-weight: 500;
     color: var(--accent);
   }
-  #game-mode {
-    padding: 3px 6px;
+  .mode-tabs {
+    display: flex;
+    gap: 4px;
+  }
+  .mode-tab-btn {
+    padding: 4px 10px;
     border: 1px solid var(--border);
-    border-radius: 5px;
     background: var(--bg);
-    color: var(--text);
-    font-size: 12px;
+    color: var(--muted);
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .mode-tab-btn.active {
+    background: var(--card);
+    color: var(--accent);
+    border-color: var(--accent);
   }
   .controls {
     display: flex;
@@ -162,23 +173,42 @@
   .trader-levels-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px 24px;
+    gap: 8px 20px;
     max-width: 560px;
   }
-  .trader-levels-grid label {
+  .trader-level-group {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 6px;
-    color: var(--text);
   }
-  .trader-level-select {
-    padding: 2px 4px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg);
+  .trader-level-group .trader-name {
     color: var(--text);
-    font-size: 12px;
+    white-space: nowrap;
+  }
+  .level-btns {
+    display: flex;
+    gap: 2px;
+  }
+  .level-btn {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--muted);
+    border-radius: 3px;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .level-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
   }
   #status {
     color: var(--muted);
@@ -282,11 +312,11 @@
   <div class="title-group">
     <div class="app-name-row">
       <div class="app-name">EFT Flea <span class="app-version">v{{ version }}</span></div>
-      <select id="game-mode" onchange="onGameModeChange()">
-        <option value="pve" selected>PvE</option>
-        <option value="regular">Regular</option>
-        <option value="pvp-season">PvP Season</option>
-      </select>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn active" data-mode="pve" onclick="setGameMode('pve')">PvE</button>
+        <button class="mode-tab-btn" data-mode="regular" onclick="setGameMode('regular')">Regular</button>
+        <button class="mode-tab-btn" data-mode="pvp-season" onclick="setGameMode('pvp-season')">PvP Season</button>
+      </div>
     </div>
   </div>
   <div class="controls">
@@ -305,30 +335,78 @@
 <div class="trader-levels" id="trader-levels-bar" style="display:none">
   <div class="trader-levels-label">Your trader levels:</div>
   <div class="trader-levels-grid">
-    <label>Prapor <select class="trader-level-select" data-trader="Prapor" onchange="renderRows(); saveSettings()">
-      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-    </select></label>
-    <label>Therapist <select class="trader-level-select" data-trader="Therapist" onchange="renderRows(); saveSettings()">
-      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-    </select></label>
-    <label>Skier <select class="trader-level-select" data-trader="Skier" onchange="renderRows(); saveSettings()">
-      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-    </select></label>
-    <label>Peacekeeper <select class="trader-level-select" data-trader="Peacekeeper" onchange="renderRows(); saveSettings()">
-      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-    </select></label>
-    <label>Mechanic <select class="trader-level-select" data-trader="Mechanic" onchange="renderRows(); saveSettings()">
-      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-    </select></label>
-    <label>Ragman <select class="trader-level-select" data-trader="Ragman" onchange="renderRows(); saveSettings()">
-      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-    </select></label>
-    <label>Jaeger <select class="trader-level-select" data-trader="Jaeger" onchange="renderRows(); saveSettings()">
-      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-    </select></label>
-    <label>Ref <select class="trader-level-select" data-trader="Ref" onchange="renderRows(); saveSettings()">
-      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
-    </select></label>
+    <div class="trader-level-group" data-trader="Prapor">
+      <span class="trader-name">Prapor</span>
+      <div class="level-btns">
+        <button class="level-btn" data-level="1" onclick="setTraderLevel('Prapor', 1)">1</button>
+        <button class="level-btn" data-level="2" onclick="setTraderLevel('Prapor', 2)">2</button>
+        <button class="level-btn" data-level="3" onclick="setTraderLevel('Prapor', 3)">3</button>
+        <button class="level-btn active" data-level="4" onclick="setTraderLevel('Prapor', 4)">4</button>
+      </div>
+    </div>
+    <div class="trader-level-group" data-trader="Therapist">
+      <span class="trader-name">Therapist</span>
+      <div class="level-btns">
+        <button class="level-btn" data-level="1" onclick="setTraderLevel('Therapist', 1)">1</button>
+        <button class="level-btn" data-level="2" onclick="setTraderLevel('Therapist', 2)">2</button>
+        <button class="level-btn" data-level="3" onclick="setTraderLevel('Therapist', 3)">3</button>
+        <button class="level-btn active" data-level="4" onclick="setTraderLevel('Therapist', 4)">4</button>
+      </div>
+    </div>
+    <div class="trader-level-group" data-trader="Skier">
+      <span class="trader-name">Skier</span>
+      <div class="level-btns">
+        <button class="level-btn" data-level="1" onclick="setTraderLevel('Skier', 1)">1</button>
+        <button class="level-btn" data-level="2" onclick="setTraderLevel('Skier', 2)">2</button>
+        <button class="level-btn" data-level="3" onclick="setTraderLevel('Skier', 3)">3</button>
+        <button class="level-btn active" data-level="4" onclick="setTraderLevel('Skier', 4)">4</button>
+      </div>
+    </div>
+    <div class="trader-level-group" data-trader="Peacekeeper">
+      <span class="trader-name">Peacekeeper</span>
+      <div class="level-btns">
+        <button class="level-btn" data-level="1" onclick="setTraderLevel('Peacekeeper', 1)">1</button>
+        <button class="level-btn" data-level="2" onclick="setTraderLevel('Peacekeeper', 2)">2</button>
+        <button class="level-btn" data-level="3" onclick="setTraderLevel('Peacekeeper', 3)">3</button>
+        <button class="level-btn active" data-level="4" onclick="setTraderLevel('Peacekeeper', 4)">4</button>
+      </div>
+    </div>
+    <div class="trader-level-group" data-trader="Mechanic">
+      <span class="trader-name">Mechanic</span>
+      <div class="level-btns">
+        <button class="level-btn" data-level="1" onclick="setTraderLevel('Mechanic', 1)">1</button>
+        <button class="level-btn" data-level="2" onclick="setTraderLevel('Mechanic', 2)">2</button>
+        <button class="level-btn" data-level="3" onclick="setTraderLevel('Mechanic', 3)">3</button>
+        <button class="level-btn active" data-level="4" onclick="setTraderLevel('Mechanic', 4)">4</button>
+      </div>
+    </div>
+    <div class="trader-level-group" data-trader="Ragman">
+      <span class="trader-name">Ragman</span>
+      <div class="level-btns">
+        <button class="level-btn" data-level="1" onclick="setTraderLevel('Ragman', 1)">1</button>
+        <button class="level-btn" data-level="2" onclick="setTraderLevel('Ragman', 2)">2</button>
+        <button class="level-btn" data-level="3" onclick="setTraderLevel('Ragman', 3)">3</button>
+        <button class="level-btn active" data-level="4" onclick="setTraderLevel('Ragman', 4)">4</button>
+      </div>
+    </div>
+    <div class="trader-level-group" data-trader="Jaeger">
+      <span class="trader-name">Jaeger</span>
+      <div class="level-btns">
+        <button class="level-btn" data-level="1" onclick="setTraderLevel('Jaeger', 1)">1</button>
+        <button class="level-btn" data-level="2" onclick="setTraderLevel('Jaeger', 2)">2</button>
+        <button class="level-btn" data-level="3" onclick="setTraderLevel('Jaeger', 3)">3</button>
+        <button class="level-btn active" data-level="4" onclick="setTraderLevel('Jaeger', 4)">4</button>
+      </div>
+    </div>
+    <div class="trader-level-group" data-trader="Ref">
+      <span class="trader-name">Ref</span>
+      <div class="level-btns">
+        <button class="level-btn" data-level="1" onclick="setTraderLevel('Ref', 1)">1</button>
+        <button class="level-btn" data-level="2" onclick="setTraderLevel('Ref', 2)">2</button>
+        <button class="level-btn" data-level="3" onclick="setTraderLevel('Ref', 3)">3</button>
+        <button class="level-btn active" data-level="4" onclick="setTraderLevel('Ref', 4)">4</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -380,6 +458,7 @@
 
 <script>
 let activeTab = 'flea';
+let gameMode = 'pve';
 
 let dataFlea = [];
 let sortKeyFlea = 'profit';
@@ -426,7 +505,7 @@ async function saveSettings() {
         minProfit: document.getElementById('min-profit').value,
         traderLevels: getTraderLevels(),
         activeTab: activeTab,
-        gameMode: document.getElementById('game-mode').value,
+        gameMode: gameMode,
       }),
     });
   } catch (e) {
@@ -443,13 +522,13 @@ async function loadSettings() {
       document.getElementById('min-profit').value = settings.minProfit;
     }
     if (settings.traderLevels) {
-      document.querySelectorAll('.trader-level-select').forEach(sel => {
-        const saved = settings.traderLevels[sel.dataset.trader];
-        if (saved) sel.value = saved;
+      document.querySelectorAll('.trader-level-group').forEach(group => {
+        const saved = settings.traderLevels[group.dataset.trader];
+        if (saved) applyTraderLevel(group, Number(saved));
       });
     }
     if (settings.gameMode) {
-      document.getElementById('game-mode').value = settings.gameMode;
+      applyGameMode(settings.gameMode);
     }
     if (settings.activeTab) {
       switchTab(settings.activeTab);
@@ -459,17 +538,39 @@ async function loadSettings() {
   }
 }
 
-async function onGameModeChange() {
+function applyGameMode(mode) {
+  gameMode = mode;
+  document.querySelectorAll('.mode-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+}
+
+async function setGameMode(mode) {
+  applyGameMode(mode);
   saveSettings();
   await refresh();
 }
 
 function getTraderLevels() {
   const levels = {};
-  document.querySelectorAll('.trader-level-select').forEach(sel => {
-    levels[sel.dataset.trader] = Number(sel.value);
+  document.querySelectorAll('.trader-level-group').forEach(group => {
+    const activeBtn = group.querySelector('.level-btn.active');
+    levels[group.dataset.trader] = activeBtn ? Number(activeBtn.dataset.level) : 4;
   });
   return levels;
+}
+
+function applyTraderLevel(group, level) {
+  group.querySelectorAll('.level-btn').forEach(btn => {
+    btn.classList.toggle('active', Number(btn.dataset.level) === level);
+  });
+}
+
+function setTraderLevel(trader, level) {
+  const group = document.querySelector(`.trader-level-group[data-trader="${trader}"]`);
+  applyTraderLevel(group, level);
+  renderRows();
+  saveSettings();
 }
 
 // dataTrader holds one entry per item: { name, fleaSell, fee, offers: [...] }.
@@ -674,7 +775,7 @@ async function refresh() {
   setStatus('Refreshing…');
   showError('');
   try {
-    const mode = document.getElementById('game-mode').value;
+    const mode = gameMode;
     const [fleaResp, traderResp] = await Promise.all([
       fetch(`/api/items?mode=${mode}`),
       fetch(`/api/trader-to-flea?mode=${mode}`),
